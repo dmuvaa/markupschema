@@ -29,18 +29,33 @@ export interface LinkAnalysisResult {
     jsOnlyLinks: string[];
 }
 
+export interface StructureMetrics {
+    architecture: 'Linear' | 'Hub & Spoke' | 'Network' | 'Complex';
+    depthRisk: 'Low' | 'Medium' | 'High';
+    linkDistribution: 'Concentrated' | 'Balanced' | 'Sparse';
+    crawlabilityScore: number; // 0-100
+    benchmarks: {
+        linkCountStatus: 'Low' | 'Healthy' | 'Excessive';
+        anchorTextStatus: 'Poor' | 'Good' | 'Optimized';
+    };
+}
+
 export interface AIInterpretation {
     primary_topic: string;
     detected_entity: string;
     entity_type: string;
-    intent: 'Informational' | 'Commercial' | 'Transactional' | 'Navigational' | 'Unknown';
+    intent: string;
     clarity_score: number;
     confidence_level: 'low' | 'medium' | 'high';
     weaknesses: string[];
+    qualitative_assessment: string; // e.g. "Excellent signal clarity"
+    topic_relevance: 'Focused' | 'Diluted' | 'Scattered';
 }
 
 export interface AnalysisResponse {
-    internal_link_analysis: LinkAnalysisResult;
+    internal_link_analysis: LinkAnalysisResult & {
+        structure: StructureMetrics;
+    };
     ai_interpretation: AIInterpretation;
     error?: string;
 }

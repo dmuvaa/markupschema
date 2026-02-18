@@ -139,8 +139,11 @@ export class LinkExtractor {
                 emptyAnchorCount,
                 avgAnchorTextLength: totalLinks > 0 ? totalAnchorLength / totalLinks : 0,
             },
-            nodes: Array.from(allInternalLinks).map(url => ({ id: url, type: 'internal' })),
-            edges: Array.from(allInternalLinks).map(target => ({ source: baseUrl, target })),
+            nodes: [
+                { id: baseUrl, type: 'internal', depth: 0 }, // Root node
+                ...Array.from(allInternalLinks).filter(url => url !== baseUrl).map(url => ({ id: url, type: 'internal', depth: 1 }))
+            ],
+            edges: Array.from(allInternalLinks).filter(url => url !== baseUrl).map(target => ({ source: baseUrl, target })),
             jsOnlyLinks
         };
     }

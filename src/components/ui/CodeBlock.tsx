@@ -8,6 +8,8 @@ export interface CodeBlockProps {
     title?: string;
     showLineNumbers?: boolean;
     maxHeight?: string;
+    collapsible?: boolean;
+    defaultExpanded?: boolean;
 }
 
 export default function CodeBlock({
@@ -16,10 +18,14 @@ export default function CodeBlock({
     title,
     showLineNumbers = false,
     maxHeight,
+    collapsible = false,
+    defaultExpanded = true,
 }: CodeBlockProps) {
     const [copied, setCopied] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
-    const handleCopy = async () => {
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
         await navigator.clipboard.writeText(code);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -30,8 +36,21 @@ export default function CodeBlock({
     return (
         <div className="rounded-lg border border-border bg-surface-1 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-2">
+            <div
+                className={`flex items-center justify-between border-b border-border bg-surface-2 px-4 py-2 ${collapsible ? 'cursor-pointer hover:bg-surface-3 transition-colors' : ''}`}
+                onClick={() => collapsible && setIsExpanded(!isExpanded)}
+            >
                 <div className="flex items-center gap-2">
+                    {collapsible && (
+                        <svg
+                            className={`h-4 w-4 text-foreground-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                    )}
                     {title && (
                         <span className="text-sm font-medium text-foreground-muted">
                             {title}
@@ -82,25 +101,27 @@ export default function CodeBlock({
             </div>
 
             {/* Code Content */}
-            <div
-                className="overflow-x-auto overflow-y-auto p-4"
-                style={maxHeight ? { maxHeight } : undefined}
-            >
-                <pre className="font-mono text-sm">
-                    <code>
-                        {lines.map((line, i) => (
-                            <div key={i} className="flex">
-                                {showLineNumbers && (
-                                    <span className="mr-4 w-8 text-right text-foreground-subtle select-none">
-                                        {i + 1}
-                                    </span>
-                                )}
-                                <span className="text-foreground">{line}</span>
-                            </div>
-                        ))}
-                    </code>
-                </pre>
-            </div>
+            {isExpanded && (
+                <div
+                    className="overflow-x-auto overflow-y-auto p-4"
+                    style={maxHeight ? { maxHeight } : undefined}
+                >
+                    <pre className="font-mono text-sm">
+                        <code>
+                            {lines.map((line, i) => (
+                                <div key={i} className="flex">
+                                    {showLineNumbers && (
+                                        <span className="mr-4 w-8 text-right text-foreground-subtle select-none">
+                                            {i + 1}
+                                        </span>
+                                    )}
+                                    <span className="text-foreground">{line}</span>
+                                </div>
+                            ))}
+                        </code>
+                    </pre>
+                </div>
+            )}
         </div>
     );
 }

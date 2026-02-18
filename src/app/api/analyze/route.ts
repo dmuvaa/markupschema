@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Crawler } from "@/lib/analysis/crawler";
 import { LinkExtractor } from "@/lib/analysis/link-extractor";
 import { AIInterpreter } from "@/lib/analysis/ai-interpreter";
+import { StructureAnalyzer } from "@/lib/analysis/structure-analyzer";
 import { AnalysisResponse } from "@/lib/analysis/types";
 
 // Schema for validation
@@ -41,7 +42,9 @@ export async function POST(request: NextRequest) {
 
     try {
         // 1. Rate Limiting
-        const ip = request.ip || request.headers.get("x-forwarded-for") || "unknown";
+        const forwardedFor = request.headers.get("x-forwarded-for");
+        const ip = forwardedFor ? forwardedFor.split(',')[0] : "unknown";
+
         if (isRateLimited(ip)) {
             return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
         }
@@ -57,8 +60,10 @@ export async function POST(request: NextRequest) {
 
         // 2. Initialize Tools
         crawler = new Crawler();
+        await crawler.init(); // Initialize browser
         const linkExtractor = new LinkExtractor();
         const aiInterpreter = new AIInterpreter();
+        const structureAnalyzer = new StructureAnalyzer();
 
         // 3. Fetch Pages (Simulate JS vs No-JS)
         const [jsResult, noJsResult] = await Promise.all([
@@ -73,13 +78,23 @@ export async function POST(request: NextRequest) {
             url
         );
 
+        // 4.5 Analyze Structure (NEW)
+        const structureMetrics = structureAnalyzer.analyze(
+            linkAnalysis.nodes,
+            linkAnalysis.edges,
+            linkAnalysis.metrics
+        );
+
         // 5. AI/SEO Interpretation (Heuristic for now)
         // We use the JS-enabled HTML as it represents the "user" view best
         const aiAnalysis = aiInterpreter.analyze(jsResult.html);
 
         // 6. Construct Response
         const responseData: AnalysisResponse = {
-            internal_link_analysis: linkAnalysis,
+            internal_link_analysis: {
+                ...linkAnalysis,
+                structure: structureMetrics
+            },
             ai_interpretation: aiAnalysis,
         };
 
@@ -94,4 +109,3 @@ export async function POST(request: NextRequest) {
         }
     }
 }
-

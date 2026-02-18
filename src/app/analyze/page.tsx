@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useEffect, useState } from "react";
 import { analyzeUrl, AnalyzeFormState } from "./actions";
 import Card from "@/components/ui/Card";
 import ScoreRing from "@/components/ui/ScoreRing";
 import CodeBlock from "@/components/ui/CodeBlock";
 import HtmlViewer from "@/components/schema/HtmlViewer";
+import { LinkGraph } from "@/components/analysis/LinkGraph";
+import { AIInterpretationPanel } from "@/components/analysis/AIInterpretation";
+import { AnalysisResponse } from "@/lib/analysis/types";
 
 export default function AnalyzePage() {
     const [state, formAction, isPending] = useActionState<AnalyzeFormState, FormData>(
@@ -13,8 +16,39 @@ export default function AnalyzePage() {
         {}
     );
 
+    // Additional state for "Deep Analysis" (Link Graph + AI)
+    const [extraData, setExtraData] = useState<AnalysisResponse | null>(null);
+    const [extraLoading, setExtraLoading] = useState(false);
+    const [extraError, setExtraError] = useState<string | null>(null);
+
     const formRef = useRef<HTMLFormElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Trigger secondary analysis when main analysis succeeds
+    useEffect(() => {
+        if (state.url && state.result && !isPending) {
+            const fetchDeepAnalysis = async () => {
+                setExtraLoading(true);
+                setExtraError(null);
+                setExtraData(null);
+                try {
+                    const res = await fetch("/api/analyze", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url: state.url }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Analysis failed");
+                    setExtraData(data);
+                } catch (err) {
+                    setExtraError(String(err));
+                } finally {
+                    setExtraLoading(false);
+                }
+            };
+            fetchDeepAnalysis();
+        }
+    }, [state.url, state.result, isPending]);
 
     const handleNavigate = (url: string) => {
         if (inputRef.current && formRef.current) {
@@ -321,9 +355,118 @@ export default function AnalyzePage() {
                             </Card>
                         </div>
 
-                        {/* Raw Schema Preview */}
+
+                        {/* --- NEW DEEP ANALYSIS SECTION (MERGED) --- */}
+                        <div className="mt-16 pt-8 border-t border-border">
+                            <div className="mb-8 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-2xl font-bold">Deep Page Intelligence</h2>
+                                    <p className="text-foreground-muted">Internal link graph structure and AI readability analysis.</p>
+                                </div>
+                                {extraLoading && (
+                                    <div className="flex items-center gap-2 text-accent-blue animate-pulse">
+                                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                                        Running Analysis...
+                                    </div>
+                                )}
+                            </div>
+
+                            {extraError && (
+                                <div className="p-4 rounded-lg bg-accent-red-glow border border-accent-red text-accent-red mb-6">
+                                    Deep Analysis Failed: {extraError}
+                                </div>
+                            )}
+
+                            {extraData && (
+                                <div className="space-y-8 animate-slide-up">
+
+                                    {/* 1. Structure Assessment (Insights First) */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <Card padding="lg" className="lg:col-span-2">
+                                            <div className="mb-4">
+                                                <h3 className="text-lg font-bold flex items-center gap-2">
+                                                    <svg className="w-5 h-5 text-accent-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                                                    Structure Assessment
+                                                </h3>
+                                                <p className="text-sm text-foreground-muted">Evaluation of site architecture and crawl efficiency.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <div className="p-3 bg-surface-2 rounded-lg border border-border">
+                                                    <div className="text-xs text-foreground-subtle uppercase mb-1">Architecture Type</div>
+                                                    <div className="font-semibold text-foreground text-lg">{extraData.internal_link_analysis.structure.architecture}</div>
+                                                </div>
+                                                <div className="p-3 bg-surface-2 rounded-lg border border-border">
+                                                    <div className="text-xs text-foreground-subtle uppercase mb-1">Crawl Depth Risk</div>
+                                                    <div className={`font-semibold text-lg ${extraData.internal_link_analysis.structure.depthRisk === 'High' ? 'text-accent-red' :
+                                                            extraData.internal_link_analysis.structure.depthRisk === 'Medium' ? 'text-accent-amber' : 'text-accent-green'
+                                                        }`}>{extraData.internal_link_analysis.structure.depthRisk}</div>
+                                                </div>
+                                                <div className="p-3 bg-surface-2 rounded-lg border border-border">
+                                                    <div className="text-xs text-foreground-subtle uppercase mb-1">Link Distribution</div>
+                                                    <div className="font-semibold text-foreground text-lg">{extraData.internal_link_analysis.structure.linkDistribution}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <div className="text-xs text-foreground-subtle mb-1">Link Count Status</div>
+                                                    <div className={`text-sm font-medium ${extraData.internal_link_analysis.structure.benchmarks.linkCountStatus === 'Healthy' ? 'text-accent-green' : 'text-accent-amber'
+                                                        }`}>
+                                                        {extraData.internal_link_analysis.metrics.totalLinks} Links ({extraData.internal_link_analysis.structure.benchmarks.linkCountStatus})
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-foreground-subtle mb-1">JS Dependency</div>
+                                                    <div className={`text-sm font-medium ${extraData.internal_link_analysis.metrics.jsDependencyPercent > 10 ? 'text-accent-amber' : 'text-accent-green'
+                                                        }`}>
+                                                        {extraData.internal_link_analysis.metrics.jsDependencyPercent.toFixed(1)}% (Target: &lt; 5%)
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Card>
+
+                                        {/* Crawlability Score */}
+                                        <Card padding="lg" className="flex flex-col justify-center items-center text-center bg-surface-2/30">
+                                            <div className="text-xs text-foreground-subtle uppercase mb-2">Crawlability Score</div>
+                                            <ScoreRing score={extraData.internal_link_analysis.structure.crawlabilityScore} size="lg" />
+                                            <div className="mt-4 text-sm text-foreground-muted">
+                                                Based on depth, JS-reliance, and distribution.
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    {/* 2. AI Interpretation Panel */}
+                                    <AIInterpretationPanel data={extraData.ai_interpretation} />
+
+                                    {/* 3. Link Graph (Visual Support - Moved to Bottom) */}
+                                    <Card padding="none" className="overflow-hidden border-border-subtle bg-surface-2/50 relative">
+                                        <div className="p-4 border-b border-border flex justify-between items-center bg-surface-1">
+                                            <div>
+                                                <h3 className="font-semibold">Visual Link Map</h3>
+                                                <p className="text-xs text-foreground-muted">Force-directed visualization of internal connections</p>
+                                            </div>
+                                            <span className="badge badge-info">{extraData.internal_link_analysis.nodes.length} Nodes</span>
+                                        </div>
+                                        <div className="relative w-full h-[500px] bg-black/40">
+                                            <LinkGraph
+                                                nodes={extraData.internal_link_analysis.nodes}
+                                                edges={extraData.internal_link_analysis.edges}
+                                                width={1100}
+                                                height={500}
+                                            />
+                                        </div>
+                                        <div className="p-3 bg-surface-1 border-t border-border text-xs text-center text-foreground-subtle">
+                                            Use this graph to identify orphan pages (isolated nodes) or excessive hubs.
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Raw Schema Preview (Moved down) */}
                         {state.rawSchemas && state.rawSchemas.length > 0 && (
-                            <div className="mt-8">
+                            <div className="mt-16">
                                 <h3 className="mb-4 text-lg font-semibold">
                                     Detected JSON-LD ({state.rawSchemas.length} blocks)
                                 </h3>
@@ -335,6 +478,8 @@ export default function AnalyzePage() {
                                             language="json"
                                             title={`Schema Block ${index + 1}`}
                                             showLineNumbers
+                                            collapsible
+                                            defaultExpanded={false}
                                         />
                                     ))}
                                     {state.rawSchemas.length > 2 && (
